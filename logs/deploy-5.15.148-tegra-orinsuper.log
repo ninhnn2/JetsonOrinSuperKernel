@@ -1,0 +1,30 @@
+=== 2026-11-22 02:43:07 deploy of 5.15.148-tegra-orinsuper to machineai-gw, as boot entry orinsuper
+5.15.148-tegra-klab
+TIMEOUT 30
+DEFAULT JetsonIO
+=== 2026-11-22 02:43:08 [1/4] the boot entries saved once, as /boot/extlinux/extlinux.conf.before-5.15.148-tegra-orinsuper
+-rw-r--r-- 1 root root 2073 Thg 11 22 14:43 /boot/extlinux/extlinux.conf.before-5.15.148-tegra-orinsuper
+=== 2026-11-22 02:43:08 [2/4] Image and modules to the board
+62f5b32fdbc28e7bc5a8a53ba2a04c147af9f3159c36bdcdc9d67194f4e6a8a5  /tmp/Image-5.15.148-tegra-orinsuper
+20badecd5540d4f8edd71440ef719d7ccb6c0588962c69150c6a6e47d7e67a0f  /tmp/modules-5.15.148-tegra-orinsuper.tar.gz
+=== 2026-11-22 02:43:10 [3/4] installed: /lib/modules/5.15.148-tegra-orinsuper, /boot/Image-5.15.148-tegra-orinsuper, its own initrd
+modules: 1090
+W: Couldn't identify type of root file system for fsck hook
+-rw-r--r-- 1 root root 42304000 Thg 11 22 14:43 /boot/Image-5.15.148-tegra-orinsuper
+-rw-r--r-- 1 root root 19405140 Thg 11 22 14:43 /boot/initrd.img-5.15.148-tegra-orinsuper
+=== 2026-11-22 02:43:25 [4/4] boot entry orinsuper: the default entry's, with this kernel; made the default
+from entry JetsonIO:
+LABEL orinsuper
+	MENU LABEL 5.15.148-tegra-orinsuper, boot config of JetsonIO
+	LINUX /boot/Image-5.15.148-tegra-orinsuper
+	INITRD /boot/initrd.img-5.15.148-tegra-orinsuper
+	FDT /boot/dtb/kernel_tegra234-p3768-0000+p3767-0005-nv-super.dtb
+	APPEND ${cbootargs} root=/dev/nvme0n1p1 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 video=efifb:off console=tty0
+	OVERLAYS /boot/tegra234-p3767-camera-p3768-imx219-C.dtbo
+TIMEOUT 30
+DEFAULT orinsuper
+=== 2026-11-22 02:43:26 reboot
+up: 5.15.148-tegra-orinsuper, up 0 minutes
+Linux machineai-gw 5.15.148-tegra-orinsuper #1 SMP PREEMPT Sun Nov 22 02:29:52 EST 2026 aarch64 aarch64 aarch64 GNU/Linux
+DEFAULT orinsuper
+=== 2026-11-22 02:44:17 done

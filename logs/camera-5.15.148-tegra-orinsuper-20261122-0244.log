@@ -1,0 +1,109 @@
+check-camera.sh on machineai-gw, 2026-11-22 02:44:43 -0500
+
+=== board and Jetson Linux
+$ tr -d '\0' </proc/device-tree/model; echo; head -1 /etc/nv_tegra_release
+NVIDIA Jetson Orin Nano Engineering Reference Developer Kit Super
+# R36 (release), REVISION: 4.7, GCID: 42132812, BOARD: generic, EABI: aarch64, DATE: Thu Sep 18 22:54:44 UTC 2025
+--> PASS
+
+=== kernel running
+$ uname -a; cat /proc/cmdline
+Linux machineai-gw 5.15.148-tegra-orinsuper #1 SMP PREEMPT Sun Nov 22 02:29:52 EST 2026 aarch64 aarch64 aarch64 GNU/Linux
+root=/dev/nvme0n1p1 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 video=efifb:off console=tty0 bl_prof_dataptr=2031616@0x271E10000 bl_prof_ro_ptr=65536@0x271E00000 
+--> PASS
+
+=== boot entry
+$ c=/boot/extlinux/extlinux.conf; d=$(sed -n 's/^DEFAULT //p' $c); echo DEFAULT $d; sed -n "/^LABEL $d\$/,/^\$/p" $c
+DEFAULT orinsuper
+LABEL orinsuper
+	MENU LABEL 5.15.148-tegra-orinsuper, boot config of JetsonIO
+	LINUX /boot/Image-5.15.148-tegra-orinsuper
+	INITRD /boot/initrd.img-5.15.148-tegra-orinsuper
+	FDT /boot/dtb/kernel_tegra234-p3768-0000+p3767-0005-nv-super.dtb
+	APPEND ${cbootargs} root=/dev/nvme0n1p1 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 video=efifb:off console=tty0
+	OVERLAYS /boot/tegra234-p3767-camera-p3768-imx219-C.dtbo
+--> PASS
+
+=== camera driver loaded, built for this kernel
+$ lsmod | grep -E '^(nv_imx|tegra_camera|nvhost_nvcsi|nvhost_isp)'; modinfo -F vermagic nv_imx219; modinfo -n nv_imx219
+nv_imx219              20480  0
+nvhost_nvcsi_t194      16384  0
+nvhost_isp5            16384  0
+tegra_camera          249856  4 nvhost_isp5,nvhost_nvcsi_t194,nv_imx219,nvhost_vi5
+nvhost_nvcsi           24576  1 tegra_camera
+tegra_camera_platform    24576  4 nvhost_isp5,nvhost_nvcsi_t194,tegra_camera,nvhost_vi5
+tegra_camera_rtcpu    229376  2 capture_ivc,tegra_camera
+5.15.148-tegra-orinsuper SMP preempt mod_unload modversions aarch64
+/lib/modules/5.15.148-tegra-orinsuper/updates/drivers/media/i2c/nv_imx219.ko
+--> PASS
+
+=== video device
+$ ls -l /dev/video* /dev/media*; v4l2-ctl --list-devices
+crw-rw----+ 1 root video 505, 0 Thg 11 22 14:44 /dev/media0
+crw-rw----+ 1 root video  81, 0 Thg 11 22 14:44 /dev/video0
+NVIDIA Tegra Video Input Device (platform:tegra-camrtc-ca):
+	/dev/media0
+
+vi-output, imx219 9-0010 (platform:tegra-capture-vi:2):
+	/dev/video0
+--> PASS
+
+=== device-tree node the driver bound
+$ for d in /sys/bus/i2c/devices/*-0010; do echo $d; readlink -f $d/of_node; cat $d/name; done
+/sys/bus/i2c/devices/9-0010
+/sys/firmware/devicetree/base/bus@0/cam_i2cmux/i2c@1/rbpcv2_imx219_c@10
+imx219
+--> PASS
+
+=== sensor modes
+$ v4l2-ctl -d /dev/video0 --list-formats-ext
+ioctl: VIDIOC_ENUM_FMT
+	Type: Video Capture
+
+	[0]: 'RG10' (10-bit Bayer RGRG/GBGB)
+		Size: Discrete 3280x2464
+			Interval: Discrete 0.048s (21.000 fps)
+		Size: Discrete 3280x1848
+			Interval: Discrete 0.036s (28.000 fps)
+		Size: Discrete 1920x1080
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1640x1232
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1280x720
+			Interval: Discrete 0.017s (60.000 fps)
+--> PASS
+
+=== kernel messages about the camera
+$ sudo -n dmesg | grep -iE 'imx219|nvcsi|tegra-camrtc|vi5|tegra-capture' | tail -15; echo dmesg-read
+[    5.721365] platform 13e00000.host1x:nvcsi@15a00000: Fixing up cyclic dependency with 9-0010
+[    5.721385] platform 13e00000.host1x:nvcsi@15a00000: Fixing up cyclic dependency with tegra-capture-vi
+[    6.585613] tegra194-vi5 13e00000.host1x:vi0@15c00000: Adding to iommu group 25
+[    6.587635] tegra-camrtc-capture-vi tegra-capture-vi: subdev 13e00000.host1x:nvcsi@15a00000- bound
+[    6.596843] tegra194-vi5 13e00000.host1x:vi1@14c00000: Adding to iommu group 27
+[    6.691055] imx219 9-0010: tegracam sensor driver:imx219_v2.0.6
+[    6.711957] tegra-camrtc-capture-vi tegra-capture-vi: subdev imx219 9-0010 bound
+dmesg-read
+--> PASS
+
+=== capture through the ISP: 300 frames, 1920x1080, mode 2, turned 180
+$ t0=$(date +%s.%N); timeout 60 gst-launch-1.0 -e nvarguscamerasrc sensor-id=0 sensor-mode=2 num-buffers=300 ! 'video/x-raw(memory:NVMM),width=1920,height=1080,framerate=30/1' ! nvvidconv flip-method=2 ! 'video/x-raw,format=I420' ! fakesink 2>&1 | grep -E 'Running with|Camera mode|Output Stream|Got EOS|ERROR|rror'; t1=$(date +%s.%N); echo "300 frames in $(echo "$t1 - $t0" | bc) s"
+GST_ARGUS: Running with following settings:
+   Camera mode  = 2 
+   Output Stream W = 1920 H = 1080 
+Got EOS from element "pipeline0".
+300 frames in 11.480954754 s
+--> PASS
+
+=== the chicken detector on the camera, 30 s
+$ cd ~/ma_capture-jetson && test -x out/ucpeer-detect || { echo 'no ucpeer-detect on the board: skipped'; exit 0; }; timeout 90 out/ucpeer-detect --no-config --camera csi --rotate 180 --model out/models/coop-1280.onnx --watch chicken --headless --duration 30 --stats 10 --report /tmp/check-camera-report.json 2>&1 | grep -vE 'NvMM' | grep -E 'model|camera|stats|error|stopping' | cut -c1-240; python3 -c "import json; r=json.load(open('/tmp/check-camera-report.json')); print('report:', {k: r[k] for k in r if k in ('frames','fps','latency','framesDecoded','framesInferred')})" 2>/dev/null || true
+14:44:57 [model] coop-1280 (1280x1280, compute all: CUDA), 1 classes
+14:44:58 [camera] imx219 #0, mode 2 1920x1080 at 30 fps, out 1920x1080 at 30 fps, rotated 180
+14:45:08 [stats] 1920x1080 camera | fps rx 28.9 dec 28.9 det 16.3 | latency p50 net 35 decoded 42 detected 110 ms (infer 67.7) | seen 0 (max 0) | cpu 85.3% mem 797 MB | lost 0 nack 0 rec 0 pli 0 dropped 0 srtp-rej 0
+14:45:18 [stats] 1920x1080 camera | fps rx 30.0 dec 30.0 det 19.8 | latency p50 net 35 decoded 42 detected 110 ms (infer 67.4) | seen 0 (max 0) | cpu 87.3% mem 798 MB | lost 0 nack 0 rec 0 pli 0 dropped 0 srtp-rej 0
+14:45:28 [stats] 1920x1080 camera | fps rx 30.0 dec 30.0 det 19.6 | latency p50 net 35 decoded 42 detected 110 ms (infer 67.7) | seen 0 (max 0) | cpu 87.1% mem 798 MB | lost 0 nack 0 rec 0 pli 0 dropped 0 srtp-rej 0
+14:45:28 [app] stopping: duration reached
+14:45:28 [report] /tmp/check-camera-report.json
+report: {'fps': {'decoded': 29.2, 'inferred': 18.4}, 'frames': {'decodeErrors': 0, 'decoded': 896, 'inferred': 563, 'notInferred': 333, 'received': 896}}
+--> PASS
+
+=== 0 check(s) failed
